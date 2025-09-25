@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { CanvasElement, ShapeElement } from './types';
-import { useEditor } from '../EditorContext';
+import { useEditor } from './EditorContext';
 
 const Canvas = () => {
   const { tool, strokes, addStroke, replaceLastStroke, elements, canvasSize, setCanvasSize, selectedId, setSelectedId, moveSelectedBy, updateElementById, penWidth, penColor } = useEditor();
