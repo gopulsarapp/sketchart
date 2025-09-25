@@ -234,6 +234,7 @@ export const EditorProvider = ({ children }: { children: React.ReactNode }) => {
     elements,
     addTextElement,
     addImageElement,
+    addShape,
     selectedId,
     setSelectedId,
     moveSelectedBy,
@@ -244,10 +245,10 @@ export const EditorProvider = ({ children }: { children: React.ReactNode }) => {
     undo,
     redo,
     setCanvasNode: (node: HTMLCanvasElement | null) => {
-      (canvasRef as any).current = node;
+      canvasRef.current = node;
     },
     exportPNG: () => {
-      const c = (canvasRef as any).current as HTMLCanvasElement | null;
+      const c = canvasRef.current;
       if (!c) return null;
       return c.toDataURL('image/png');
     },
@@ -256,7 +257,7 @@ export const EditorProvider = ({ children }: { children: React.ReactNode }) => {
     penWidth,
     setPenWidth,
     setFillForSelected,
-  }), [tool, strokes, elements, addStroke, replaceLastStroke, addTextElement, addImageElement, addShape, canvasSize, selectedId]);
+  }), [tool, strokes, elements, addStroke, replaceLastStroke, addTextElement, addImageElement, addShape, canvasSize, selectedId, moveSelectedBy, deleteSelected, updateElementById, setCanvasSize, undo, redo, penColor, penWidth, setFillForSelected]);
 
   // local canvas ref to support export without prop drilling
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
