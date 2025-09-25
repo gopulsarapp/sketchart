@@ -1,14 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // If you want to bypass type/ESLint errors in Netlify builds:
   typescript: {
+    // ✅ Ignore type errors in production builds
     ignoreBuildErrors: true,
   },
   eslint: {
+    // ✅ Ignore lint errors in production builds
     ignoreDuringBuilds: true,
   },
-
-  // (Optional) If you are using next export
+  // If you want static export
   output: 'export',
 };
 
