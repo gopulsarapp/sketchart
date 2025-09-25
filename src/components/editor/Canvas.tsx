@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useEditor } from './EditorContext';
+import { CanvasElement, ShapeElement } from './types';
+import { useEditor } from '../EditorContext';
 
 const Canvas = () => {
-  const { tool, strokes, addStroke, replaceLastStroke, elements, canvasSize, setCanvasSize, selectedId, setSelectedId, moveSelectedBy, updateElementById, setCanvasNode, penWidth, penColor } = useEditor();
+  const { tool, strokes, addStroke, replaceLastStroke, elements, canvasSize, setCanvasSize, selectedId, setSelectedId, moveSelectedBy, updateElementById, penWidth, penColor } = useEditor();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-
-  // Resize observer to keep internal state in sync
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -18,19 +17,16 @@ const Canvas = () => {
     resize();
   }, [setCanvasSize]);
 
-  // draw all content
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // clear
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // elements (images, text, shapes)
     for (const el of elements) {
       if (el.type === 'text') {
         ctx.fillStyle = '#111827';
@@ -53,8 +49,8 @@ const Canvas = () => {
             ctx2.drawImage(img, el.x, el.y, el.width, el.height);
           }
         };
-      } else if ((el as any).type === 'shape') {
-        const sh = el as any as { id: string; type: 'shape'; shape: 'rect'|'circle'|'triangle'; x: number; y: number; width: number; height: number; fill: string };
+      } else if (el.type === 'shape') {
+        const sh = el as ShapeElement;
         ctx.fillStyle = sh.fill;
         if (sh.shape === 'rect') {
           ctx.fillRect(sh.x, sh.y, sh.width, sh.height);
@@ -71,20 +67,17 @@ const Canvas = () => {
           ctx.fill();
         }
       }
-      // selection bounds
       if (selectedId === el.id) {
         ctx.save();
         ctx.strokeStyle = '#60a5fa';
         ctx.setLineDash([4, 4]);
         const { bx, by, bw, bh } = (() => {
-          if (el.type === 'image') return { bx: el.x, by: el.y, bw: el.width, bh: el.height };
-          if ((el as any).type === 'shape') return { bx: (el as any).x, by: (el as any).y, bw: (el as any).width, bh: (el as any).height };
-          const approxW = (el as any).text?.length * ((el as any).fontSize * 0.6) || 100;
-          const approxH = (el as any).fontSize * 1.2 || 20;
+          if (el.type === 'image' || el.type === 'shape') return { bx: el.x, by: el.y, bw: el.width, bh: el.height };
+          const approxW = el.text.length * (el.fontSize * 0.6);
+          const approxH = el.fontSize * 1.2;
           return { bx: el.x, by: el.y - approxH, bw: approxW, bh: approxH };
         })();
         ctx.strokeRect(bx, by, bw, bh);
-        // handle bottom-right
         ctx.setLineDash([]);
         ctx.fillStyle = '#2563eb';
         ctx.fillRect(bx + bw - 6, by + bh - 6, 12, 12);
@@ -92,7 +85,6 @@ const Canvas = () => {
       }
     }
 
-    // strokes on top so marks overlay images/shapes
     for (const s of strokes) {
       if (s.points.length < 2) continue;
       ctx.globalAlpha = s.opacity;
@@ -106,12 +98,14 @@ const Canvas = () => {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-  }, [strokes, elements, canvasSize]);
+  }, [strokes, elements, canvasSize, selectedId]);
 
   const getRelative = (e: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
+
+  const dragRef = useRef<{ x: number; y: number, mode: 'drag' | 'resize' } | null>(null);
 
   const onPointerDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x, y } = getRelative(e);
@@ -122,25 +116,26 @@ const Canvas = () => {
       const opacity = tool === 'highlighter' ? 0.4 : 1;
       addStroke({ id: `s_${Date.now()}`, points: [{ x, y }], color, width, opacity });
     } else if (tool === 'select') {
-      // hit test elements, simple bounds for text using fontSize and length
       const hit = [...elements].reverse().find((el) => {
-        if (el.type === 'image') {
-          // also check for resize handle
+        if (el.type === 'image' || el.type === 'shape') {
           const inBounds = x >= el.x && y >= el.y && x <= el.x + el.width && y <= el.y + el.height;
           const inHandle = x >= el.x + el.width - 6 && x <= el.x + el.width + 6 && y >= el.y + el.height - 6 && y <= el.y + el.height + 6;
-          (dragRef.current as any) = { x, y, mode: inHandle ? 'resize' : 'drag' };
+          if (inBounds || inHandle) {
+            dragRef.current = { x, y, mode: inHandle ? 'resize' : 'drag' };
+          }
           return inBounds || inHandle;
         }
-        const approxW = (el as any).text.length * ((el as any).fontSize * 0.6);
-        const approxH = (el as any).fontSize * 1.2;
-        (dragRef.current as any) = { x, y, mode: 'drag' };
-        return x >= el.x && y >= el.y - approxH && x <= el.x + approxW && y <= el.y;
+        const approxW = el.text.length * (el.fontSize * 0.6);
+        const approxH = el.fontSize * 1.2;
+        const inBounds = x >= el.x && y >= el.y - approxH && x <= el.x + approxW && y <= el.y;
+        if (inBounds) {
+          dragRef.current = { x, y, mode: 'drag' };
+        }
+        return inBounds;
       });
       setSelectedId(hit ? hit.id : null);
     }
   };
-
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
 
   const onPointerMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x, y } = getRelative(e);
@@ -150,30 +145,25 @@ const Canvas = () => {
       replaceLastStroke({ ...last, points: [...last.points, { x, y }] });
       return;
     }
-    // drag/resize when selected - throttle updates for better performance
     if (tool === 'select' && selectedId && dragRef.current) {
       const prev = dragRef.current;
       const dx = x - prev.x;
       const dy = y - prev.y;
       
-      // Only update if movement is significant enough (reduces unnecessary redraws)
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
         if (prev.mode === 'drag') {
           moveSelectedBy(dx, dy);
         } else if (prev.mode === 'resize') {
-          updateElementById(selectedId, (el) => {
-            if ((el as any).type === 'shape') {
-              const width = Math.max(10, (el as any).width + dx);
-              const height = Math.max(10, (el as any).height + dy);
-              return { ...(el as any), width, height } as any;
+          updateElementById(selectedId, (el: CanvasElement) => {
+            if (el.type === 'shape' || el.type === 'image') {
+              const width = Math.max(10, el.width + dx);
+              const height = Math.max(10, el.height + dy);
+              return { ...el, width, height };
             }
-            if ((el as any).type !== 'image') return el as any;
-            const width = Math.max(10, (el as any).width + dx);
-            const height = Math.max(10, (el as any).height + dy);
-            return { ...(el as any), width, height } as any;
+            return el;
           });
         }
-        dragRef.current = { ...prev, x, y } as any;
+        dragRef.current = { ...prev, x, y };
       }
     }
   };
